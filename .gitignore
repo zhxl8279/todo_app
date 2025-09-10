@@ -12,6 +12,8 @@
 !*.h
 # Makefile
 !Makefile*
+# Makefile
+!/*.md
 
 
 # directory
@@ -84,9 +86,6 @@ moc_*
 *.suo
 GeneratedFiles
 ipch
-
-#vxworks
-PPC32e500v2*
 
 # DDS
 *.log.*
