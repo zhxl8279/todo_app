@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 个人任务管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><a href="index.html">📝 个人任务管理系统</a></h1>
+            <nav>
+                <a href="index.html" class="btn">首页</a>
+                <a href="#" onclick="logout()" class="btn">退出</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="profile-container">
+                <div class="profile-header">
+                    <h2>个人中心</h2>
+                    <div class="user-avatar">👤</div>
+                    <h3 id="welcome-msg">欢迎, 用户!</h3>
+                </div>
+
+                <div class="profile-info">
+                    <h3>基本信息</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>用户ID:</label>
+                            <span id="user-id">--</span>
+                        </div>
+                        <div class="info-item">
+                            <label>用户名:</label>
+                            <span id="username">--</span>
+                        </div>
+                        <div class="info-item">
+                            <label>邮箱:</label>
+                            <span id="email">--</span>
+                        </div>
+                        <div class="info-item">
+                            <label>注册时间:</label>
+                            <span id="register-date">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-stats">
+                    <h3>任务统计</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-tasks">0</div>
+                            <div class="stat-label">总任务数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="completed-tasks">0</div>
+                            <div class="stat-label">已完成</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="pending-tasks">0</div>
+                            <div class="stat-label">待完成</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="completion-rate">0%</div>
+                            <div class="stat-label">完成率</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tasks-section">
+                    <h3>任务列表</h3>
+                    <div class="tasks-header">
+                        <button class="btn" onclick="loadUserProfile()">刷新任务</button>
+                    </div>
+
+                    <div id="tasks-container" class="tasks-container">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // 调试信息
+        console.log('Current auth token:', localStorage.getItem('auth_token'));
+
+        // 检查登录状态
+        if (!checkLoginStatus()) {
+            console.log('未登录，跳转到登录页面');
+            window.location.href = 'login.html';
+        }
+
+        // 加载用户信息
+        async function loadUserProfile() {
+            console.log('Loading user profile...');
+
+            try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    throw new Error('No authentication token found');
+                }
+
+                const response = await fetch('/api/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Profile response status:', response.status);
+
+                if (response.status === 401) {
+                    // Token 无效或过期
+                    console.log('Token expired or invalid');
+                    logout();
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Profile data:', data);
+
+                if (data.status === 'success') {
+                    displayUserInfo(data.user);
+                    updateTaskStats(data.tasks || []);
+                    displayTasks(data.tasks || []);
+                } else {
+                    showMessage('加载失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('加载用户信息失败:', error);
+                showMessage('加载失败: ' + error.message, 'error');
+
+                if (error.message.includes('token') || error.message.includes('auth')) {
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                }
+            }
+        }
+
+        function displayUserInfo(userData) {
+            document.getElementById('user-id').textContent = userData.id || '--';
+            document.getElementById('username').textContent = userData.username || '--';
+            document.getElementById('email').textContent = userData.email || '--';
+            document.getElementById('register-date').textContent = userData.register_date || '--';
+            document.getElementById('welcome-msg').textContent = `欢迎, ${userData.username || '用户'}!`;
+        }
+
+        function displayTasks(tasks) {
+            const container = document.getElementById('tasks-container');
+
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<div class="no-tasks">暂无任务</div>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="task-item ${task.completed ? 'completed' : ''}">
+                    <div class="task-header">
+                        <h4 class="task-title">${task.title || '无标题'}</h4>
+                        <span class="status ${task.completed ? 'completed' : 'pending'}">
+                            ${task.completed ? '✅ 已完成' : '⏳ 进行中'}
+                        </span>
+                    </div>
+                    ${task.description ? `<p class="task-desc">${task.description}</p>` : ''}
+                    ${task.due_date ? `<div class="task-due">截止: ${task.due_date}</div>` : ''}
+                    <div class="task-meta">创建: ${task.created_at || '未知时间'}</div>
+                </div>
+            `).join('');
+        }
+
+        function updateTaskStats(tasks) {
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.completed).length;
+            const pending = total - completed;
+            const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('total-tasks').textContent = total;
+            document.getElementById('completed-tasks').textContent = completed;
+            document.getElementById('pending-tasks').textContent = pending;
+            document.getElementById('completion-rate').textContent = rate + '%';
+        }
+
+        function showMessage(message, type) {
+            // 简单的消息显示
+            alert(`${type.toUpperCase()}: ${message}`);
+        }
+
+        // 页面加载时获取用户信息
+        document.addEventListener('DOMContentLoaded', loadUserProfile);
+    </script>
+</body>
+</html>

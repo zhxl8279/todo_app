@@ -154,6 +154,88 @@ bool Database::loginUser(const std::string &username, const std::string &passwor
     }
 }
 
+bool Database::addTask(int id, const Task &t) {
+    bool ret = false;
+    if (!connected_) {
+        return ret;
+    }
+
+    try {
+        Schema db = session_->getSchema(DATABASE);
+        Table tasks = db.getTable("tasks");
+
+        tasks.insert(
+              "title", "description", "completed", "due_date", "user_id")
+              .values(t.title, t.text, t.completed, t.datetime, id)
+              .execute();
+
+        cout << "\n=== " << id << " 添加任务 ===" << endl;
+
+        // 获取最后插入的ID
+        SqlResult sqlResult = session_->sql("SELECT LAST_INSERT_ID()").execute();
+        Row row = sqlResult.fetchOne();
+        int generatedId = row[0];
+
+        std::cout << "Task inserted with ID: " << generatedId << std::endl;
+
+        return generatedId;
+    } catch (const mysqlx::Error &e) {
+        cerr << "添加任务失败: " << e.what() << endl;
+    }
+    return ret;
+}
+
+// 删除任务
+bool Database::delTask(int taskId) {
+    bool ret = false;
+    if (!connected_) {
+        return ret;
+    }
+
+    try {
+        Schema db = session_->getSchema(DATABASE);
+        Table tasks = db.getTable("tasks");
+
+        mysqlx::Result result = tasks.remove()
+                              .where("id = :id")
+                              .bind("id", taskId)
+                              .execute();
+
+            std::cout << "Task " << taskId << " deleted. Affected rows: "
+                      << result.getAffectedItemsCount() << std::endl;
+            return result.getAffectedItemsCount() > 0;
+
+    } catch (const mysqlx::Error &e) {
+        cerr << "删除任务失败: " << e.what() << endl;
+    }
+    return ret;
+}
+
+// 更新任务状态
+bool Database::updateTaskStatus(int taskId, bool completed) {
+    bool ret = false;
+    if (!connected_) {
+        return ret;
+    }
+    try {
+        Schema db = session_->getSchema(DATABASE);
+        Table tasks = db.getTable("tasks");
+
+        mysqlx::Result result = tasks.update()
+                            .set("completed", completed)
+                            .where("id = :id")
+                            .bind("id", taskId)
+                            .execute();
+
+        std::cout << "Task " << taskId << " updated. Affected rows: "
+                    << result.getAffectedItemsCount() << std::endl;
+        return result.getAffectedItemsCount() > 0;
+    } catch (const mysqlx::Error &e) {
+        std::cerr << "更新任务失败: " << e.what() << std::endl;
+        return false;
+    }
+}
+
 // 获取用户的任务列表
 std::vector<Task> Database::getUserTasks(int id) {
     std::vector<Task> ret;
@@ -166,7 +248,8 @@ std::vector<Task> Database::getUserTasks(int id) {
 
         // 使用 SQL 语句进行复杂查询
         SqlResult result = session_->sql(
-            "SELECT t.* FROM tasks t "
+            "SELECT t.id, t.title, t.description, t.completed, "
+            "CAST(t.due_date AS char), CAST(t.created_at AS char) FROM tasks t "
             "JOIN users u ON t.user_id = u.id "
             "WHERE u.id = ? "
             "ORDER BY t.created_at DESC"
@@ -187,6 +270,7 @@ std::vector<Task> Database::getUserTasks(int id) {
             cout << "ID: " << row[0].get<int>()
                  << ", 标题: " << row[1].get<std::string>()
                  << ", 状态: " << (row[3].get<bool>() ? "已完成" : "未完成")
+                 << " " << task.datetime << " " << task.timestamp
                  << endl;
         }
 
@@ -199,6 +283,7 @@ std::vector<Task> Database::getUserTasks(int id) {
 User Database::getUser(const std::string &username) {
     User user;
     if (!connected_) {
+        std::cout << "数据库未连接" << std::endl;
         return user;
     }
 
@@ -207,7 +292,8 @@ User Database::getUser(const std::string &username) {
 
         // 使用 SQL 语句进行复杂查询
         SqlResult result = session_->sql(
-            "SELECT * FROM users "
+            "SELECT u.id, u.username, u.email, "
+            "u.password_hash, CAST(u.created_at AS char) FROM users u "
             "WHERE username = ? "
         ).bind(username).execute();
 
@@ -219,7 +305,7 @@ User Database::getUser(const std::string &username) {
             user.username     = row[1].get<std::string>();
             user.email        = row[2].get<std::string>();
             user.password_hash= row[3].get<std::string>();
-            //user.created_at   = row[3].get<std::string>();
+            user.timestamp    = row[4].get<std::string>();
             cout << "ID: " << row[0].get<int>()
                  << ", username: " << row[1].get<std::string>()
                  << ", email: " << (row[2].get<std::string>())
@@ -243,7 +329,8 @@ User Database::getUser(int id) {
 
         // 使用 SQL 语句进行复杂查询
         SqlResult result = session_->sql(
-            "SELECT * FROM users "
+            "SELECT u.id, u.username, u.email, "
+            "u.password_hash, CAST(u.created_at AS char) FROM users u "
             "WHERE id = ? "
         ).bind(id).execute();
 
@@ -255,7 +342,7 @@ User Database::getUser(int id) {
             user.username     = row[1].get<std::string>();
             user.email        = row[2].get<std::string>();
             user.password_hash= row[3].get<std::string>();
-            //user.created_at   = row[3].get<std::string>();
+            user.timestamp    = row[4].get<std::string>();
             cout << "ID: " << row[0].get<int>()
                  << ", username: " << row[1].get<std::string>()
                  << ", email: " << (row[2].get<std::string>())

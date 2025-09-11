@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人任务管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 个人任务管理系统</h1>
+            <nav>
+                <span id="auth-links">
+                    <a href="login.html" class="btn">登录</a>
+                    <a href="register.html" class="btn">注册</a>
+                </span>
+                <span id="user-links" style="display:none;">
+                    <a href="profile.html" class="btn">个人中心</a>
+                    <a href="#" onclick="logout()" class="btn">退出</a>
+                </span>
+            </nav>
+        </header>
+
+        <main>
+            <div class="hero">
+                <h2>高效管理您的每日任务</h2>
+                <p>简单易用的个人任务管理工具，帮助您更好地规划时间和工作</p>
+                <div class="features">
+                    <div class="feature">
+                        <h3>✅ 任务管理</h3>
+                        <p>创建、编辑、完成和删除任务</p>
+                    </div>
+                    <div class="feature">
+                        <h3>🔐 安全登录</h3>
+                        <p>采用加密技术保护您的数据安全</p>
+                    </div>
+                    <div class="feature">
+                        <h3>📊 进度跟踪</h3>
+                        <p>实时查看任务完成情况和统计</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 个人任务管理系统. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // 检查登录状态
+        checkLoginStatus();
+    </script>
+</body>
+</html>

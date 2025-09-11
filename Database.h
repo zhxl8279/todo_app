@@ -54,6 +54,9 @@ public:
     void disconnect();
     bool registerUser(const std::string &username, const std::string &email, const std::string &password);
     bool loginUser(const std::string &username, const std::string &password);
+    bool addTask(int id, const Task &t);
+    bool delTask(int taskId);
+    bool updateTaskStatus(int taskId, bool completed);
     std::vector<Task> getUserTasks(int id);
     User getUser(const std::string &username);
     User getUser(int id);

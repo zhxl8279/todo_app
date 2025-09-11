@@ -1,5 +1,6 @@
 // httpserver.cpp
 #include <iostream>
+#include <string>
 #include "httplib.h"
 #include "nlohmann/json.hpp"
 #include "PasswordHasher.h"
@@ -32,14 +33,28 @@ public:
     }
 
     bool loginUser(const std::string &username, const std::string &password) {
+        std::cout << "loginUser: " << username << " :" << password << std::endl;
         bool res = data.loginUser(username, password);
         if (res == true) {
             id = getIdByName(username);
             valid = true;
-            user = data.getUser(username);
-            user.task = getUserTasks(user.id);
         }
         return res;
+    }
+
+    bool addTask(int id, const Task &t) {
+        std::cout << "addTask: " << id << std::endl;
+        return data.addTask(id, t);
+    }
+
+    bool delTask(int taskId) {
+        std::cout << "delTask: " << taskId << std::endl;
+        return data.delTask(id);
+    }
+
+    bool updateTaskStatus(int taskId, bool completed) {
+        std::cout << "updateTaskStatus: " << taskId << " :" << completed << std::endl;
+        return data.updateTaskStatus(taskId, completed);
     }
 
     std::vector<Task> getUserTasks(int id) {
@@ -50,7 +65,6 @@ public:
     }
 
     User getUser(const std::string &username) {
-        User user;
         if (valid == true) {
             user = data.getUser(username);
             user.task = getUserTasks(user.id);
@@ -90,19 +104,16 @@ public:
                 std::string email = j["email"];
                 std::cout << "新用户注册" << username << password << email << std::endl;
 
-                // 密码哈希
-                std::string hashedPassword = PasswordHasher::getInstance().hashPassword(password);
-
                 // 保存到数据库（这里需要你实现）
                 std::shared_ptr<Client> client = std::make_shared<Client>();
-                if (client->registerUser(username, email, hashedPassword)) {
+                if (client->registerUser(username, email, password)) {
                     int id = client->getIdByName(username);
                     std::cout << "新用户注册id: " << id << std::endl;
                     users[id] = client;
                     // 返回成功响应
                     res.set_content(R"({"status": "success", "message": "User registered"})", "application/json");
                 } else {
-                    res.set_content(R"({"status": "failed", "message": "User name alread existed"})", "application/json");
+                    res.set_content(R"({"status": "failed", "message": "User name or Email alread existed"})", "application/json");
                 }
 
             } catch (const std::exception& e) {
@@ -119,29 +130,25 @@ public:
                 std::string password = j["password"];
 
                 std::shared_ptr<Client> client = std::make_shared<Client>();
-                User user = client->getUser(username);
-                if (user.id == -1) {
+                if (client->loginUser(username, password)) {
+                    User user = client->getUser(username);
                     if (!users.count(user.id)) {
                         users[user.id] = client;
                     }
+                    // 生成真实的 JWT token
+                    std::string token = JwtManager::getInstance().generateToken(user.id, username);
+                    std::cout << token << std::endl;
 
-                    bool isValid = users[user.id]->loginUser(username, password);
-
-                    if (isValid) {
-                        // 生成真实的 JWT token
-                        std::string token = JwtManager::getInstance().generateToken(user.id, username);
-
-                        json response;
-                        response["status"] = "success";
-                        response["message"] = "Login successful";
-                        response["token"] = token;
-                        response["user"] = {
-                            {"id", user.id},
-                            {"username", user.username},
-                            {"email", user.email}
-                        };
-                        res.set_content(response.dump(), "application/json");
-                    }
+                    json response;
+                    response["status"] = "success";
+                    response["message"] = "Login successful";
+                    response["token"] = token;
+                    response["user"] = {
+                        {"id", user.id},
+                        {"username", user.username},
+                        {"email", user.email}
+                    };
+                    res.set_content(response.dump(), "application/json");
                 } else {
                     res.status = 401;
                     res.set_content(R"({"status": "error", "message": "Invalid credentials"})", "application/json");
@@ -153,22 +160,25 @@ public:
             }
         });
 
-
-
         // 获取任务列表
-        server.Get("/api/tasks", [&](const httplib::Request& req, httplib::Response& res) {
+        server.Get("/api/logout", [&](const httplib::Request& req, httplib::Response& res) {
             // 验证权限等
-            res.set_content(R"([{"id": 1, "title": "Learn C++", "completed": false}])", "application/json");
+            res.set_content(R"({"status": "success", "message": "Logout"})", "application/json");
         });
 
-        // API: GET /api/profile
-        server.Post("/api/profile", [&](const httplib::Request& req, httplib::Response& res) {
+        // 获取任务列表
+        server.Get("/api/addtask", [&](const httplib::Request& req, httplib::Response& res) {
             try {
                 // 从 Authorization 头获取 token
                 auto auth_header = req.headers.find("Authorization");
                 std::string token = auth_header->second.substr(7);
+                std::cout << token << std::endl;
 
                 int id = JwtManager::getInstance().getUserIdFromToken(token);
+                std::cout << id << std::endl;
+                if (users.count(id)) {
+                    std::cout << "用户已登录" << std::endl;
+                }
                 User user = users[id]->getUser();
 
                 json response = {
@@ -182,20 +192,74 @@ public:
                     }},
                     {"tasks", json::array()}  // 任务列表将在下面填充
                 };
+
                 // 填充任务数据
-                for (const auto& task : user.task) {
-                    json task_json = {
-                        {"id", task.id},
-                        {"title", task.title},
-                        {"text", task.text},
-                        {"completed", task.completed},
-                        {"datetime", task.datetime},
-                        {"timestamp", task.timestamp}
-                    };
-                    response["tasks"].push_back(task_json);
+                try{
+                    for (const auto& task : user.task) {
+                        json task_json = {
+                            {"id", task.id},
+                            {"title", task.title},
+                            {"text", task.text},
+                            {"completed", task.completed},
+                            {"due_date", task.datetime},
+                            {"created_at", task.timestamp}
+                        };
+                        response["tasks"].push_back(task_json);
+                    }
+                } catch (const std::exception& e) {
+                    std::cout << e.what() << std::endl;
                 }
                 res.set_content(response.dump(), "application/json");
+            } catch (const std::exception& e) {
+                res.status = 400;
+                res.set_content(R"({"status": "error", "message": "Login failed"})", "application/json");
+            }
+        });
 
+        // API: GET /api/profile
+        server.Get("/api/profile", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // 从 Authorization 头获取 token
+                auto auth_header = req.headers.find("Authorization");
+                std::string token = auth_header->second.substr(7);
+                std::cout << token << std::endl;
+
+                int id = JwtManager::getInstance().getUserIdFromToken(token);
+                std::cout << id << std::endl;
+                if (users.count(id)) {
+                    std::cout << "用户已登录" << std::endl;
+                }
+                User user = users[id]->getUser();
+
+                json response = {
+                    {"status", "success"},
+                    {"user", {
+                        {"id", user.id},
+                        {"username", user.username},
+                        {"email", user.email},
+                        {"register_date", user.timestamp},
+                        {"task_count", user.task.size()}
+                    }},
+                    {"tasks", json::array()}  // 任务列表将在下面填充
+                };
+
+                // 填充任务数据
+                try{
+                    for (const auto& task : user.task) {
+                        json task_json = {
+                            {"id", task.id},
+                            {"title", task.title},
+                            {"text", task.text},
+                            {"completed", task.completed},
+                            {"due_date", task.datetime},
+                            {"created_at", task.timestamp}
+                        };
+                        response["tasks"].push_back(task_json);
+                    }
+                } catch (const std::exception& e) {
+                    std::cout << e.what() << std::endl;
+                }
+                res.set_content(response.dump(), "application/json");
             } catch (const std::exception& e) {
                 res.status = 400;
                 res.set_content(R"({"status": "error", "message": "Login failed"})", "application/json");

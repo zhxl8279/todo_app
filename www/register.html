@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 个人任务管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><a href="index.html">📝 个人任务管理系统</a></h1>
+        </header>
+
+        <main class="auth-container">
+            <div class="auth-form">
+                <h2>用户注册</h2>
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="reg-username">用户名:</label>
+                        <input type="text" id="reg-username" name="username" required
+                               placeholder="请输入用户名（3-20个字符）" minlength="3" maxlength="20">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reg-email">邮箱:</label>
+                        <input type="email" id="reg-email" name="email" required
+                               placeholder="请输入有效的邮箱地址">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reg-password">密码:</label>
+                        <input type="password" id="reg-password" name="password" required
+                               placeholder="请输入密码（至少6个字符）" minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reg-confirm-password">确认密码:</label>
+                        <input type="password" id="reg-confirm-password" name="confirm_password" required
+                               placeholder="请再次输入密码">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">注册</button>
+                </form>
+
+                <div class="auth-links">
+                    <p>已有账号？ <a href="login.html">立即登录</a></p>
+                    <p><a href="index.html">返回首页</a></p>
+                </div>
+
+                <div id="message" class="message"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('reg-password').value;
+            const confirmPassword = document.getElementById('reg-confirm-password').value;
+
+            if (password !== confirmPassword) {
+                document.getElementById('message').className = 'message error';
+                document.getElementById('message').textContent = '两次输入的密码不一致';
+                return;
+            }
+
+            const formData = {
+                username: document.getElementById('reg-username').value,
+                email: document.getElementById('reg-email').value,
+                password: password
+            };
+
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = 'message';
+            messageDiv.textContent = '注册中...';
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    messageDiv.className = 'message success';
+                    messageDiv.textContent = '注册成功！正在跳转到登录页面...';
+
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                } else {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = data.message || '注册失败';
+                }
+            } catch (error) {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = '网络错误，请重试';
+            }
+        });
+
+        // 检查是否已登录
+        if (localStorage.getItem('auth_token')) {
+            window.location.href = 'profile.html';
+        }
+    </script>
+</body>
+</html>

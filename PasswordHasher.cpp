@@ -17,7 +17,7 @@ PasswordHasher::PasswordHasher() : m_initialized(false) {}
 // 初始化加密库
 bool PasswordHasher::initialize() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     if (m_initialized) {
         return true;
     }
@@ -35,7 +35,7 @@ bool PasswordHasher::initialize() {
 // 哈希密码
 std::string PasswordHasher::hashPassword(const std::string& password) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     if (!m_initialized) {
         throw std::runtime_error("PasswordHasher not initialized");
     }
@@ -49,11 +49,11 @@ std::string PasswordHasher::hashPassword(const std::string& password) {
     }
 
     char hashed_password[crypto_pwhash_STRBYTES];
-    
+
     if (crypto_pwhash_str(hashed_password,
                          password.c_str(),
                          password.length(),
-                         crypto_pwhash_OPSLIMIT_INTERACTIVE,   // 更高的安全级别
+                         crypto_pwhash_OPSLIMIT_INTERACTIVE,
                          crypto_pwhash_MEMLIMIT_INTERACTIVE) != 0) {
         throw std::runtime_error("Password hashing failed: out of memory");
     }
@@ -64,7 +64,7 @@ std::string PasswordHasher::hashPassword(const std::string& password) {
 // 验证密码
 bool PasswordHasher::verifyPassword(const std::string& hashedPassword, const std::string& password) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     if (!m_initialized) {
         throw std::runtime_error("PasswordHasher not initialized");
     }
@@ -99,8 +99,8 @@ bool PasswordHasher::isPasswordStrong(const std::string& password) {
     }
 
     // 至少包含三种不同类型的字符
-    int typeCount = (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + 
+    int typeCount = (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) +
                    (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
-    
+
     return typeCount >= 3;
 }
